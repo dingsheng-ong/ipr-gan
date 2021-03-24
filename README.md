@@ -12,7 +12,7 @@ Released on March 22, 2021
 
 <p align="justify"> Ever since Machine Learning as a Service (MLaaS) emerges as a viable business that utilizes deep learning models to generate lucrative revenue, Intellectual Property Right (IPR) has become a major concern because these deep learning models can easily be replicated, shared, and re-distributed by any unauthorized third parties. To the best of our knowledge, one of the prominent deep learning models - Generative Adversarial Networks (GANs) which has been widely used to create photorealistic image are totally unprotected despite the existence of pioneering IPR protection methodology for Convolutional Neural Networks (CNNs). This paper therefore presents a complete protection framework in both black-box and white-box settings to enforce IPR protection on GANs. Empirically, we show that the proposed method does not compromise the original GANs performance (i.e. image generation, image super-resolution, style transfer), and at the same time, it is able to withstand both removal and ambiguity attacks against embedded watermarks.</p>
 
-<p align="center"> <img src="cvpr2021.png" width="30%"> </p>
+<p align="center"> <img src="cvpr2021.png" width="50%"> </p>
 <p align="center"> Figure 1: Overview of our proposed GANs protection framework in black-box setting.</p>
 
 ## How to run
