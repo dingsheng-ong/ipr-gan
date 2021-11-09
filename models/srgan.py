@@ -1,178 +1,107 @@
-from functools import reduce
-from models.custom import BatchNorm2d
+from models.base import Model
+from torch import optim
+from torch.nn import DataParallel, functional as F
+import networks
 import torch
-import torch.nn as nn
 
+class SRGAN(Model):
+    def __init__(self, config, device=[torch.device('cpu'), ]):
+        super(SRGAN, self).__init__()
+        fn_g = getattr(networks, config.G)
+        fn_d = getattr(networks, config.D)
+        fn_v = getattr(networks, config.V)
+        
+        self.device = device
+        ids = [k.index for k in device]
 
-class FeatureExtractor(nn.Module):
+        self.G = DataParallel(fn_g().to(device[0]), device_ids=ids)
+        self.D = DataParallel(fn_d().to(device[0]), device_ids=ids)
+        self.V = DataParallel(fn_v().to(device[0]), device_ids=ids)
+        self.G.train()
+        self.D.train()
+        self.V.eval()
 
-    def __init__(self, cnn):
-        super(FeatureExtractor, self).__init__()
-        features = cnn.features
-        index    = [
-            i for i, layer in enumerate(features.children()) \
-            if isinstance(layer, nn.MaxPool2d)
-        ][4]
-        self.features = features[:index]
-        mean = torch.Tensor([0.485, 0.456, 0.406])
-        std  = torch.Tensor([0.229, 0.224, 0.225])
-        self.register_buffer('mean', mean.view(1,3,1,1))
-        self.register_buffer('std',   std.view(1,3,1,1))
+        opt_fn = getattr(optim, config.opt)
+        opt_param = config.opt_param.to_dict()
+        self.optG = opt_fn(self.G.parameters(), **opt_param)
+        self.optD = opt_fn(self.D.parameters(), **opt_param)
 
-    def forward(self, x):
-        z = (x - self.mean) / self.std
-        return self.features(x).squeeze()
+        self._modules['G'] = self.G
+        self._modules['D'] = self.D
+        self._modules['optG'] = self.optG
+        self._modules['optD'] = self.optD
 
-
-class SRResNet(nn.Module):
-
-    def __init__(self, ngb=16, upf=4):
-        super(SRResNet, self).__init__()
-        resnet_blocks = [_resnet_block(64, 64) for _ in range(ngb)]
-        resnet_blocks.append(BNConv2dBlock(64, 64, p=1, n=True))
-        self.network = nn.ModuleList([
-            BNConv2dBlock(3, 64, k=9, p=4, a='PReLU()'),
-            ResidualBlock(nn.Sequential(*resnet_blocks)),
-            *[UpsampleBlock(64, 64) for _ in range(upf // 2)],
-            BNConv2dBlock(64, 3, k=9, p=4),
-        ])
-
-    def forward(self, x, update_stats=True):
-        return reduce(lambda z, f: f(z, update_stats), self.network, x)
-
-
-class Discriminator_96(nn.Module):
-
-    def __init__(self):
-        super(Discriminator_96, self).__init__()
-        self.network = nn.Sequential(
-            Conv2dBlock(3,   64,  s=1, p=1, a='LeakyReLU(0.2, True)'),
-            Conv2dBlock(64,  64,  s=2, p=1, n=True, a='LeakyReLU(0.2, True)'),
-            Conv2dBlock(64,  128, s=1, p=1, n=True, a='LeakyReLU(0.2, True)'),
-            Conv2dBlock(128, 128, s=2, p=1, n=True, a='LeakyReLU(0.2, True)'),
-            Conv2dBlock(128, 256, s=1, p=1, n=True, a='LeakyReLU(0.2, True)'),
-            Conv2dBlock(256, 256, s=2, p=1, n=True, a='LeakyReLU(0.2, True)'),
-            Conv2dBlock(256, 512, s=1, p=1, n=True, a='LeakyReLU(0.2, True)'),
-            Conv2dBlock(512, 512, s=2, p=1, n=True, a='LeakyReLU(0.2, True)'),
-            Conv2dBlock(512, 1024, k=6, a='LeakyReLU(0.2, True)'),
-            Conv2dBlock(1024, 1, k=1),
+    def compute_d_loss(self):
+        # hinge loss
+        self.LossR = F.binary_cross_entropy_with_logits(
+            self.real_logits,
+            torch.ones_like(self.real_logits)
         )
+        self.LossF = F.binary_cross_entropy_with_logits(
+            self.fake_logits,
+            torch.zeros_like(self.fake_logits)
+        )
+        self.LossD = self.LossR + self.LossF
 
-    def forward(self, x):
-        return self.network(x).squeeze()
+    def compute_g_loss(self):
+        # adversarial loss
+        device = self.super_res.device
+        if self.pretrain:
+            self.LossG = F.mse_loss(self.super_res, self.high_res.to(device))
+        else:
+            self.LossA = F.binary_cross_entropy_with_logits(
+                self.gen_logits,
+                torch.ones_like(self.gen_logits)
+            )
+            sr_feat = self.V(self.super_res)
+            hr_feat = self.V(self.high_res).detach()
+            self.LossX = F.mse_loss(sr_feat, hr_feat)
+            self.LossG = self.LossX + 1e-3 * self.LossA
 
+    def forward_d(self, data):
+        self.high_res  = data['high_res']
+        self.super_res = data['super_res']
+        self.real_logits = self.D(self.high_res)
+        self.fake_logits = self.D(self.super_res.detach())
 
-def _resnet_block(nc_inp, nc_out):
-    return ResidualBlock(nn.ModuleList([
-        BNConv2dBlock(nc_inp, nc_out, p=1, n=True, a='PReLU()'),
-        BNConv2dBlock(nc_inp, nc_out, p=1, n=True),
-    ]))
+    def forward_g(self, data):
+        self.low_res  = data['low_res']
+        self.high_res = data['high_res']
+        self.pretrain = data['pretrain']
+        self.super_res = self.G(self.low_res)
 
+        if not self.pretrain:
+            self.gen_logits = self.D(self.super_res)
 
-class ResidualBlock(nn.Module):
-    
-    def __init__(self, block):
-        super(ResidualBlock, self).__init__()
-        self.block = block
+    def get_metrics(self):
+        if self.pretrain:
+            return {
+                'G/MSE': self.LossG.item(),
+                'G/Sum': self.LossG.item(),
+            }
+        else:
+            return {
+                'D/Sum': self.LossD.item(),
+                'D/Real': self.LossR.item(),
+                'D/Fake': self.LossF.item(),
+                'G/Sum': self.LossG.item(),
+                'G/Adv': self.LossA.item(),
+                'G/Con': self.LossX.item(),
+            }
 
-    def forward(self, x, update_stats=True):
-        return x + reduce(lambda z, f: f(z, update_stats), self.block, x)
+    def update_d(self, data):
+        self.forward_d(data)
+        self.compute_d_loss()
 
-    def __repr__(self):
-        repr_string = str(self.block).split('\n')
-        repr_string = list(map(lambda x: '\n│' + x, repr_string))
-        repr_string[-1] = repr_string[-1][0] + '▼' + repr_string[-1][2:]
-        return self._get_name() + ''.join(repr_string)
+        self.optD.zero_grad()
+        self.LossD.backward()
+        self.optD.step()
 
-
-class BNConv2dBlock(nn.Module):
-
-    def __init__(self, nc_inp, nc_out, k=3, s=1, p=0, n=False, a=None):
-        super(BNConv2dBlock, self).__init__()
-        self.P = nn.ZeroPad2d(p) if p else lambda x: x
-        self.C = nn.Conv2d(nc_inp, nc_out, k, s)
-        self.N = BatchNorm2d(nc_out) if n else lambda x, z: x
-        self.A = eval(f'nn.{a}') if a else lambda x: x
-        self.weight_init()
-
-    def weight_init(self):
-        a = {
-            nn.LeakyReLU: 0.2 ,
-            nn.PReLU    : 0.25,
-            nn.ReLU     : 0.0 ,
-        }.get(self.A.__class__, 1.0)
-
-        nn.init.kaiming_normal_(self.C.weight, a=a, mode='fan_in')
-        self.C.bias.data.zero_()
-
-        if isinstance(self.N, nn.BatchNorm2d):
-            self.N.weight.data.fill_(1)
-            self.N.bias.data.zero_()
-
-    def forward(self, x, update_stats=True):
-        return self.A(self.N(self.C(self.P(x)), update_stats))
-
-
-class Conv2dBlock(nn.Module):
-
-    def __init__(self, nc_inp, nc_out, k=3, s=1, p=0, n=False, a=None):
-        super(Conv2dBlock, self).__init__()
-        self.P = nn.ZeroPad2d(p) if p else lambda x: x
-        self.C = nn.Conv2d(nc_inp, nc_out, k, s)
-        self.N = nn.BatchNorm2d(nc_out) if n else lambda x: x
-        self.A = eval(f'nn.{a}') if a else lambda x: x
-        self.weight_init()
-
-    def weight_init(self):
-        a = {
-            nn.LeakyReLU: 0.2 ,
-            nn.PReLU    : 0.25,
-            nn.ReLU     : 0.0 ,
-        }.get(self.A.__class__, 1.0)
-
-        nn.init.kaiming_normal_(self.C.weight, a=a, mode='fan_in')
-        self.C.bias.data.zero_()
-
-        if isinstance(self.N, nn.BatchNorm2d):
-            self.N.weight.data.fill_(1)
-            self.N.bias.data.zero_()
-
-    def forward(self, x):
-        return self.A(self.N(self.C(self.P(x))))
-
-
-class UpsampleBlock(nn.Module):
-
-    def __init__(self, nc_inp, nc_out, upf=2):
-        super(UpsampleBlock, self).__init__()
-        self.block =  nn.ModuleList([
-            BNConv2dBlock(nc_inp, nc_out * (upf ** 2), p=1),
-            nn.PixelShuffle(upf),
-            nn.PReLU(),
-        ])
-
-    def forward(self, x, update_stats=True):
-        return reduce(lambda z, f: f(z, update_stats) if isinstance(f, BNConv2dBlock) else f(z), self.block, x)
-
-
-if __name__ == '__main__':
-    from torchvision.models import vgg19
-    F = FeatureExtractor(vgg19(pretrained=True))
-    G = SRResNet(16, 4)
-    D = Discriminator_96()
-    x = torch.randn(64, 3, 24, 24)
-
-    print('======================================= FeatureExtractor =======================================')
-    print(F)
-    print('Input :', list(x.size()))
-    print('Output:', list(F(x).size()))
-
-    print('=========================================== SRResNet ===========================================')
-    print(G)
-    print('Input :', list(x.size()))
-    print('Output:', list(G(x).size()))
-
-    print('======================================= Discriminator_96 =======================================')
-    print(D)
-    print('Input :', list(G(x).size()))
-    print('Output:', list(D(G(x)).size()))
+    def update_g(self, data, update=True):
+        self.forward_g(data)
+        self.compute_g_loss()
+        
+        if update:
+            self.optG.zero_grad()
+            self.LossG.backward()
+            self.optG.step()

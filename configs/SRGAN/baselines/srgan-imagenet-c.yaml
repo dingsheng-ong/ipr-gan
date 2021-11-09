@@ -1,0 +1,40 @@
+dataset:
+  name: 'imagenet'
+  path: './data/imagenet'
+  size: 96
+evaluation:
+  data:
+    - bsz: 1
+      name: 'set5'
+      path: './data/Set5'
+      size: -1
+    - bsz: 1
+      name: 'set14'
+      path: './data/Set14'
+      size: -1
+    - bsz: 1
+      name: 'bsd100'
+      path: './data/BSD100'
+      size: -1
+experiment: 'ImageSuperResolution'
+model:
+  G: 'SRResNet'
+  D: 'Discriminator96'
+  V: 'VGG19Feature'
+  opt: 'Adam'
+  opt_param:
+    lr: 1.0e-4
+  type: 'SRGAN'
+hparam:
+  bsz: 16
+  pretrain_iter: 1000000
+  iteration: 200000
+log:
+  freq: 2000
+  path: './log/SRGAN-BASE-IMAGENET-C'
+protection: null
+resource:  
+  gpu: true
+  ngpu: 2
+  worker: 8
+seed: 7890

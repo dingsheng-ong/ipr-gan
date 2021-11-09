@@ -1,0 +1,31 @@
+dataset:
+  name: 'cifar10'
+  path: './data/cifar10'
+  size: 32
+evaluation:
+  data:
+    - bsz: 50
+      name: 'cifar10'
+      path: './data/cifar10'
+      size: 32
+experiment: 'ImageGeneration'
+model:
+  G: 'Decoder32'
+  D: 'Encoder32'
+  opt: 'Adam'
+  opt_param:
+    lr: 3.0e-5
+    weight_decay: 1.0e-6
+  type: 'VAE'
+hparam:
+  bsz: 64
+  iteration: 187500
+log:
+  freq: 1875
+  path: './log/VAE-BASE-CIFAR10-B'
+protection: null
+resource:  
+  gpu: true
+  ngpu: 1
+  worker: 4
+seed: 4567

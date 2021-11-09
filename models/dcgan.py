@@ -1,66 +1,78 @@
-import torch.nn as nn
-import torch.nn.functional as F
-from functools import reduce
-from models.custom import BatchNorm2d
+from models.base import Model
+from torch import optim
+from torch.nn import DataParallel, functional as F
+import networks
+import torch
 
+class DCGAN(Model):
+    def __init__(self, config, device=[torch.device('cpu'), ]):
+        super(DCGAN, self).__init__()
+        fn_g = getattr(networks, config.G)
+        fn_d = getattr(networks, config.D)
+        
+        self.device = device
+        ids = [k.index for k in device]
 
-class Generator(nn.Module):
+        self.G = DataParallel(fn_g().to(device[0]), device_ids=ids)
+        self.D = DataParallel(fn_d().to(device[0]), device_ids=ids)
+        self.G.train()
+        self.D.train()
 
-    def __init__(self, ):
-        super(Generator, self).__init__()
+        opt_fn = getattr(optim, config.opt)
+        opt_param = config.opt_param.to_dict()
+        self.optG = opt_fn(self.G.parameters(), **opt_param)
+        self.optD = opt_fn(self.D.parameters(), **opt_param)
 
-        self.linear  = nn.Linear(128, 512 * 4 * 4)
-        self.network = nn.ModuleList([
-            nn.ConvTranspose2d(512, 256, 4, 2, 1, bias=False),
-            BatchNorm2d(256),
-            nn.ReLU(inplace=True),
+        self._modules['G'] = self.G
+        self._modules['D'] = self.D
+        self._modules['optG'] = self.optG
+        self._modules['optD'] = self.optD
 
-            nn.ConvTranspose2d(256, 128, 4, 2, 1, bias=False),
-            BatchNorm2d(128),
-            nn.ReLU(inplace=True),
+    def compute_d_loss(self):
+        # hinge loss
+        self.LossR = F.relu(1. - self.real_logits).mean()
+        self.LossF = F.relu(1. + self.fake_logits).mean()
+        self.LossD = self.LossR + self.LossF
 
-            nn.ConvTranspose2d(128, 64, 4, 2, 1, bias=False),
-            BatchNorm2d(64),
-            nn.ReLU(inplace=True),
+    def compute_g_loss(self):
+        # adversarial loss
+        self.LossA = - self.gen_logits.mean()
+        self.LossG = self.LossA
 
-            nn.ConvTranspose2d(64, 3, 3, 1, 1, bias=False),
-            nn.Tanh(),
-        ])
+    def forward_d(self, data):
+        
+        self.latent      = data['latent']
+        self.real_sample = data['real_sample']
+        self.fake_sample = self.G(self.latent)
+        self.real_logits = self.D(self.real_sample)
+        self.fake_logits = self.D(self.fake_sample.detach())
 
-    def forward(self, z, update_stats=True):
-        z = F.relu(self.linear(z)).view(z.size(0), -1, 4, 4)
-        return reduce(lambda x, f: f(x, update_stats) if isinstance(f, BatchNorm2d) else f(x), self.network, z)
+    def forward_g(self, data):
+        self.generated  = data['fake_sample']
+        self.gen_logits = self.D(self.generated)
 
+    def get_metrics(self):
+        return {
+            'D/Sum': self.LossD.item(),
+            'D/Real': self.LossR.item(),
+            'D/Fake': self.LossF.item(),
+            'G/Sum': self.LossG.item(),
+            'G/Adv': self.LossA.item()
+        }
 
-class Discriminator(nn.Module):
+    def update_d(self, data):
+        self.forward_d(data)
+        self.compute_d_loss()
 
-    def __init__(self, ):
-        super(Discriminator, self).__init__()
+        self.optD.zero_grad()
+        self.LossD.backward()
+        self.optD.step()
 
-        self.network = nn.Sequential(
-            nn.utils.spectral_norm(nn.Conv2d(3, 64, 3, 1, 1, bias=True)),
-            nn.LeakyReLU(0.1, inplace=True),
-
-            nn.utils.spectral_norm(nn.Conv2d(64, 64, 4, 2, 1, bias=True)),
-            nn.LeakyReLU(0.1, inplace=True),
-
-            nn.utils.spectral_norm(nn.Conv2d(64, 128, 3, 1, 1, bias=True)),
-            nn.LeakyReLU(0.1, inplace=True),
-
-            nn.utils.spectral_norm(nn.Conv2d(128, 128, 4, 2, 1, bias=True)),
-            nn.LeakyReLU(0.1, inplace=True),
-
-            nn.utils.spectral_norm(nn.Conv2d(128, 256, 3, 1, 1, bias=True)),
-            nn.LeakyReLU(0.1, inplace=True),
-
-            nn.utils.spectral_norm(nn.Conv2d(256, 256, 4, 2, 1, bias=True)),
-            nn.LeakyReLU(0.1, inplace=True),
-
-            nn.utils.spectral_norm(nn.Conv2d(256, 512, 3, 1, 1, bias=True)),
-            nn.LeakyReLU(0.1, inplace=True),
-        )
-        self.linear = nn.utils.spectral_norm(nn.Linear(4 * 4 * 512, 1))
-
-    def forward(self, x):
-        return self.linear(self.network(x).view(x.size(0), -1)).view(-1)
-
+    def update_g(self, data, update=True):
+        self.forward_g(data)
+        self.compute_g_loss()
+        
+        if update:
+            self.optG.zero_grad()
+            self.LossG.backward()
+            self.optG.step()

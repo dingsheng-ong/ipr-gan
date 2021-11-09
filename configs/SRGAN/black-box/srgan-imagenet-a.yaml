@@ -1,0 +1,53 @@
+dataset:
+  name: 'imagenet'
+  path: './data/imagenet'
+  size: 96
+evaluation:
+  p_thres: 0.05
+  data:
+    - bsz: 1
+      name: 'set5'
+      path: './data/Set5'
+      size: -1
+    - bsz: 1
+      name: 'set14'
+      path: './data/Set14'
+      size: -1
+    - bsz: 1
+      name: 'bsd100'
+      path: './data/BSD100'
+      size: -1
+experiment: 'ImageSuperResolution'
+model:
+  G: 'SRResNet'
+  D: 'Discriminator96'
+  V: 'VGG19Feature'
+  opt: 'Adam'
+  opt_param:
+    lr: 1.0e-4
+  type: 'SRGAN'
+hparam:
+  bsz: 16
+  pretrain_iter: 1000000
+  iteration: 200000
+log:
+  freq: 2000
+  path: './log/SRGAN-BBOX-IMAGENET-A'
+protection:
+  bbox:
+    fn_inp:
+      size: 12
+      type: 'RandomNoisePatch'
+    fn_out:
+      size: 48
+      opaque: true
+      type: 'PasteWatermark'
+      watermark: './data/watermarks/A.png'
+    lambda: 1.0
+    loss_fn: 'ssim'
+  wbox: null
+resource:  
+  gpu: true
+  ngpu: 2
+  worker: 8
+seed: 1234
