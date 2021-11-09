@@ -9,13 +9,11 @@
 Updated on November 9, 2021
 
 ## Description
-<div style="text-align:justify">
+<p align="justify">
   Ever since Machine Learning as a Service (MLaaS) emerges as a viable business that utilizes deep learning models to generate lucrative revenue, Intellectual Property Right (IPR) has become a major concern because these deep learning models can easily be replicated, shared, and re-distributed by any unauthorized third parties. To the best of our knowledge, one of the prominent deep learning models - Generative Adversarial Networks (GANs) which has been widely used to create photorealistic image are totally unprotected despite the existence of pioneering IPR protection methodology for Convolutional Neural Networks (CNNs). This paper therefore presents a complete protection framework in both black-box and white-box settings to enforce IPR protection on GANs. Empirically, we show that the proposed method does not compromise the original GANs performance (i.e. image generation, image super-resolution, style transfer), and at the same time, it is able to withstand both removal and ambiguity attacks against embedded watermarks.
-</div>
-<div style="text-align: center">
-  <div><img src="overview.png" width="50%"></div>
-  <div>Figure 1: Overview of our proposed GANs protection framework in black-box setting.</div>
-</div>
+</p>
+<p align="center"><img src="overview.png" width="50%"></p>
+<p align="center">Figure 1: Overview of our proposed GANs protection framework in black-box setting.</p>
 
 ## How to run
 
@@ -41,7 +39,7 @@ $ tensorboard --logdir log/
 ```bash
 $ python eval.py -l log/<directory> -s sample/
 ```
-To evaluate CycleGAN on CityScapes, you can use the code in `scripts/`. You need to rename the trained log directory `log/CycleGAN-XXXX-CITY-X` to `scripts/log` and run `run.py`. Next, you need to download the `fcn-8s-cityscapes.caffemodel` and put it in `scripts/caffemodel` directory (Please see the original [CycleGAN repo](https://github.com/junyanz/pytorch-CycleGAN-and-pix2pix)). The file structure should be as shown below:
+To evaluate CycleGAN on CityScapes, you can use the code in `scripts/`. You need to rename the trained log directory `log/CycleGAN-XXXX-CITY-X` to `scripts/log` and run `run.py`. Next, you need to download the `fcn-8s-cityscapes.caffemodel` and put it in `scripts/caffemodel` directory (Please see the original [CycleGAN repo](https://github.com/junyanz/pytorch-CycleGAN-and-pix2pix)). Finally, you should put the cityscapes ground-truth images in `scripts/gt/`. The file structure should be as shown below:
 ```
 scripts/
 ├─ caffemodel/
