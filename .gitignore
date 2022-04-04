@@ -139,7 +139,6 @@ cython_debug/
 
 # large files
 data/*
-scripts/*
 *.caffemodel
 
 # IDE
