@@ -1,10 +1,8 @@
 # GAN IPR Protection
 
-[ArXiv](https://arxiv.org/abs/2102.04362)
-
 ### Official pytorch implementation of the paper: "Protecting Intellectual Property of Generative Adversarial Networks from Ambiguity Attack"
 
-#### CVPR 2021
+#### CVPR 2021 | [PDF](https://openaccess.thecvf.com/content/CVPR2021/html/Ong_Protecting_Intellectual_Property_of_Generative_Adversarial_Networks_From_Ambiguity_Attacks_CVPR_2021_paper.html)
 
 Updated on September 26, 2022
 
