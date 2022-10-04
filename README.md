@@ -4,15 +4,15 @@
 
 #### CVPR 2021 | [PDF](https://openaccess.thecvf.com/content/CVPR2021/html/Ong_Protecting_Intellectual_Property_of_Generative_Adversarial_Networks_From_Ambiguity_Attacks_CVPR_2021_paper.html)
 
-Released on September 2021
+(Released on September 2021)
 
 Updated on September 26, 2022
 
 ## Updates
 1. Fix bugs
-2. Our framework on DNN IP protection is accepted in TPAMI 2022, see [Project Repo](https://github.com/kamwoh/DeepIPR).
-3. Our framework on RNN IP protection is accepted in AACL IJCNLP 2022, see [Project Repo](https://github.com/zhiqin1998/RecurrentIPR).
-4. Our framework on Multi-modal IP protection is accepted in Pattern Recognition 2022, see [Project Repo](https://github.com/jianhanlim/ipr-imagecaptioning).
+2. Our framework on DNN IP protection is accepted in TPAMI 2022, see [here](https://github.com/kamwoh/DeepIPR).
+3. Our framework on RNN IP protection is accepted in AACL IJCNLP 2022, see [here](https://github.com/zhiqin1998/RecurrentIPR).
+4. Our framework on Multi-modal IP protection is accepted in Pattern Recognition 2022, see [here](https://github.com/jianhanlim/ipr-imagecaptioning).
 
 ## Description
 <p align="justify">
