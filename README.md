@@ -84,7 +84,7 @@ $ python sign_flip.py -l log/<directory> -s sample/
 
 ## Citation
 If you find this work useful for your research, please cite
-```
+```bibtex
 @inproceedings{GanIPR,
   title={Protecting Intellectual Property of Generative Adversarial Networks from Ambiguity Attack},
   author={Ong, Ding Sheng and Chan, Chee Seng and Ng, Kam Woh and Fan, Lixin and Yang, Qiang},
